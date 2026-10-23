@@ -41,6 +41,21 @@ button{font:inherit;color:var(--ink);background:none;border:0;cursor:pointer}
 #board.ink .cell:not(.given) span{opacity:.05;transition:opacity 1s}
 #stage.quake{animation:quake .18s infinite}
 @keyframes quake{25%{transform:translate(-3px,2px)}50%{transform:translate(2px,-3px)}75%{transform:translate(3px,3px)}}
+.cell span{display:inline-block;transition:opacity .6s,transform .4s}
+#wrap{transition:rotate 1s}
+#wrap.flip{rotate:180deg}
+#stage{transition:scale .6s}
+#stage.tiny{scale:.55}
+#stage.spin{animation:spin 2.5s linear infinite}
+@keyframes spin{to{rotate:360deg}}
+#board.dark .cell span{opacity:.05}
+#board.dark .cell.sel span{opacity:1}
+#board.mirror .cell span{transform:scaleX(-1)}
+#board.jelly .cell span{animation:jelly .4s infinite alternate}
+@keyframes jelly{from{transform:translate(-3px,2px) rotate(-12deg)}to{transform:translate(3px,-2px) rotate(12deg)}}
+#board.ghosts .cell span:empty::after{content:attr(data-g);opacity:.4}
+#board.invert{filter:invert(1)}
+#pad.blank button{color:transparent}
 </style></head>
 <body>
 <button id="evil">evil</button>
@@ -63,6 +78,21 @@ const GLYPHS=[
  ['α','β','γ','δ','ε','ζ','η','θ','λ'],
  ['I','II','III','IV','V','VI','VII','VIII','IX']
 ];
+// Evil-only languages
+const EVIL_LANGS=[
+ ['Hebrew',['א','ב','ג','ד','ה','ו','ז','ח','ט']],
+ ['Arabic',['١','٢','٣','٤','٥','٦','٧','٨','٩']],
+ ['Hindi',['१','२','३','४','५','६','७','८','९']],
+ ['Braille',['⠁','⠃','⠉','⠙','⠑','⠋','⠛','⠓','⠊']],
+ ['Cyrillic',['Б','Г','Д','Ж','З','И','Л','Ф','Ц']],
+ ['Thai',['๑','๒','๓','๔','๕','๖','๗','๘','๙']],
+ ['binary',['0001','0010','0011','0100','0101','0110','0111','1000','1001']],
+ ['Japanese',['あ','い','う','え','お','か','き','く','け']],
+ ['Korean',['일','이','삼','사','오','육','칠','팔','구']],
+ ['lying numbers',['7','3','9','1','5','2','8','4','6']]
+];
+const BASE=GLYPHS.length;
+GLYPHS.push(...EVIL_LANGS.map(x=>x[1]));
 const INSULTS=['You angered the grid.','Wrong. The grid remembers.','That was a choice.','Bold. Incorrect. Punished.'];
 const $=id=>document.getElementById(id), board=$('board'), bar=$('bar'), pad=$('pad'), msg=$('msg');
 const R=n=>Math.floor(Math.random()*n), pick2=()=>{const a=R(3);return[a,(a+1+R(2))%3]}, B3=n=>Math.floor(n/3);
@@ -88,7 +118,7 @@ const STRUCT=[
 ];
 // Display-only mischief
 const FX=[
- ()=>{let n;do n=R(GLYPHS.length);while(n===g);g=n;return 'The language changed.'},
+ ()=>{let n;do n=R(BASE);while(n===g);g=n;return 'The language changed.'},
  ()=>{const v=[['rotateZ(180deg)','Australia mode.'],[`rotateX(${25+R(20)}deg) rotateZ(${R(20)-10}deg)`,'Gravity is a suggestion.'],[`skew(${R(20)-10}deg,${R(10)-5}deg) scale(.92)`,'The board had one drink too many.']][R(3)];
    board.style.transform=v[0];clearTimeout(tiltT);tiltT=setTimeout(()=>board.style.transform='',9000);return v[1]},
  ()=>{board.classList.add('shy');clearTimeout(shyT);shyT=setTimeout(()=>board.classList.remove('shy'),7000);return 'The clues are shy.'}
@@ -102,7 +132,20 @@ const EVIL=[
  ()=>{timed(board,'fog',5000);return 'Fog rolled in.'},
  ()=>{timed($('stage'),'quake',6000);return 'Earthquake.'},
  ()=>{timed(board,'ink',6000);return 'Your answers went invisible.'},
- ()=>{[...pad.children].slice(0,9).forEach(b=>b.style.order=R(99));return 'The keypad got shuffled.'}
+ ()=>{[...pad.children].slice(0,9).forEach(b=>b.style.order=R(99));return 'The keypad got shuffled.'},
+ // 10 new languages
+ ...[0,1].map(()=>()=>{let i;do i=R(EVIL_LANGS.length);while(BASE+i===g);g=BASE+i;return `Now in ${EVIL_LANGS[i][0]}.`}),
+ // 10 new effects
+ ()=>{timed(board,'dark',5000);return 'Lights out.'},
+ ()=>{timed($('stage'),'tiny',7000);return 'The board shrank.'},
+ ()=>{timed($('stage'),'spin',5000);return 'Spin cycle.'},
+ ()=>{timed(board,'mirror',8000);return 'The symbols are mirrored.'},
+ ()=>{timed(board,'jelly',6000);return 'Everything is jelly.'},
+ ()=>{cells.forEach(k=>k.sp.dataset.g=G(1+R(9)));timed(board,'ghosts',6000);return 'Decoys appeared.'},
+ ()=>{timed(board,'invert',6000);return 'Colours inverted.'},
+ ()=>{const e=cells.filter(k=>!k.v);if(e.length)sel=e[R(e.length)];return 'Someone moved your cursor.'},
+ ()=>{timed($('wrap'),'flip',7000);return 'The whole page flipped.'},
+ ()=>{timed(pad,'blank',6000);return 'The keypad forgot its labels.'}
 ];
 let evil=false;
 
@@ -162,7 +205,7 @@ function win(){
 
 function newGame(){
   board.querySelectorAll('.cell').forEach(e=>e.remove());
-  board.style.transform='';board.classList.remove('shy','fog','ink');$('stage').classList.remove('quake');resetPad();
+  board.style.transform='';board.className='';$('stage').className='';$('wrap').className='';pad.className='';resetPad();
   cells=[];sel=null;events=0;over=false;g=0;
   for(let r=0;r<9;r++)for(let c=0;c<9;c++){
     const el=document.createElement('div'),sp=document.createElement('span');el.className='cell';el.appendChild(sp);
@@ -188,7 +231,7 @@ document.querySelectorAll('#diff button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('#diff button').forEach(x=>x.classList.toggle('on',x===b));blanks=+b.dataset.n;newGame()});
 $('new').onclick=newGame;
 $('summon').onclick=()=>chaos('You asked for this.');
-$('evil').onclick=()=>{evil=!evil;document.body.classList.toggle('evil',evil);if(!evil)resetPad();
+$('evil').onclick=()=>{evil=!evil;document.body.classList.toggle('evil',evil);if(!evil){resetPad();if(g>=BASE){g=0;render()}}
   if(!over){schedule();say(evil?'Evil mode. Good luck.':'Evil mode off. Coward.')}};
 
 (function tick(){
